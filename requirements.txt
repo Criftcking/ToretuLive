@@ -1,3 +1,4 @@
 telethon
 asyncio
 telegram
+python-telegram-bot==13.15
