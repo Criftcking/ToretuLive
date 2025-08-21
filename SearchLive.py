@@ -1,3 +1,31 @@
+# === /deleteuser (solo admin) ===
+async def deleteuser_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    sender_id = update.effective_user.id
+
+    if not es_administrador(sender_id):
+        await update.message.reply_text("🚫 Solo los administradores pueden usar este comando.")
+        return
+
+    if len(context.args) < 1:
+        await update.message.reply_text("❗ Uso: /deleteuser <user_id>")
+        return
+
+    target_id = context.args[0].strip()
+    if not target_id.isdigit():
+        await update.message.reply_text("❗ El ID debe ser numérico.")
+        return
+
+    target_id = int(target_id)
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id FROM usuarios WHERE id = %s", (target_id,))
+    if c.fetchone():
+        c.execute("DELETE FROM usuarios WHERE id = %s", (target_id,))
+        conn.commit()
+        await update.message.reply_text(f"✅ Usuario {target_id} eliminado de la base de datos.")
+    else:
+        await update.message.reply_text(f"❌ El usuario {target_id} no existe en la base de datos.")
+    conn.close()
 import psycopg2
 import psycopg2.extras
 from telegram import Update
@@ -1019,6 +1047,7 @@ def main():
     app.add_handler(CommandHandler("restore", restore_handler))
     app.add_handler(CommandHandler("miplan", miplan_handler))
     app.add_handler(CommandHandler("users", users_handler))
+    app.add_handler(CommandHandler("deleteuser", deleteuser_handler))
 
     print("🤖 Bot corriendo...")
     app.run_polling()
