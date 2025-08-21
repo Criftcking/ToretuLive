@@ -59,14 +59,15 @@ async def main():
     print("✅ Conectado a Telegram")
 
     dialogs = await client.get_dialogs()
-    print("\nChats disponibles:")
-    for i, dialog in enumerate(dialogs):
-        if dialog.is_group or dialog.is_channel:
-            print(f"{i}: {dialog.name}")
 
-    index = int(input("\nSelecciona el número del grupo/canal: "))
-    target = dialogs[index].entity
-    target_name = dialogs[index].name.replace(" ", "_")
+    # Buscar automáticamente el chat "Team Wolf Lives"
+    target_dialog = next((d for d in dialogs if d.name == "Team Wolf Lives"), None)
+    if not target_dialog:
+        print("❌ No se encontró el chat 'Team Wolf Lives'.")
+        return
+
+    target = target_dialog.entity
+    target_name = target_dialog.name.replace(" ", "_")
     archivo = f"{target_name}_mensajes.txt"
 
     # Variable mutable compartida
@@ -83,10 +84,10 @@ async def main():
     print(f"✅ {nuevos} bloques antiguos nuevos guardados.")
     bloques_guardados = limpiar_bloques_duplicados(archivo)
 
-    # ✅ Handler accediendo correctamente a la variable
+    # Handler para nuevos mensajes
     @client.on(events.NewMessage(chats=target))
     async def handler(event):
-        nonlocal bloques_guardados  # ← NECESARIO para modificar la variable de main()
+        nonlocal bloques_guardados
 
         if event.text and SEPARADOR in event.text:
             bloque = event.text.strip()
@@ -94,8 +95,9 @@ async def main():
                 print(f"[{event.chat.title}] ✅ Nuevo bloque guardado.")
                 bloques_guardados = limpiar_bloques_duplicados(archivo)
 
-    print(f"\n⏳ Escuchando mensajes nuevos en: {dialogs[index].name}")
+    print(f"\n⏳ Escuchando mensajes nuevos en: {target_dialog.name}")
     await asyncio.Future()
+
 
 with client:
     client.loop.run_until_complete(main())
