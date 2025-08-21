@@ -395,48 +395,27 @@ def buscar_bins(bin_input: str, mes=None, año=None, limite=1) -> list:
             tarjeta = match_tarjeta.group(1)
             banco = match_banco.group(1) if match_banco else "Desconocido"
             fecha_str = match_fecha.group(1) if match_fecha else "Desconocida"
-            # Verificar filtros de fecha si se proporcionan
-            if mes and año:
-                fecha_match = re.search(r'(\d{1,2})[/\\|](\d{2,4})', fecha_str)
-                if fecha_match:
-                    fecha_mes = fecha_match.group(1)
-                    fecha_año = fecha_match.group(2)
-                    if len(fecha_año) == 2:
-                        fecha_año = "20" + fecha_año
-                    if len(fecha_mes) == 1:
-                        fecha_mes = "0" + fecha_mes
-                    mes_busqueda = str(mes).zfill(2)
-                    año_busqueda = str(año)
-                    if len(año_busqueda) == 2:
-                        año_busqueda = "20" + año_busqueda
-                    if fecha_mes != mes_busqueda or fecha_año != año_busqueda:
-                        continue
-                else:
+
+            # Normalizar fecha: soporta 1 o 2 dígitos de mes, 2 o 4 de año, y separadores / | \
+            fecha_match = re.search(r'(\d{1,2})\s*[/\\|]\s*(\d{2,4})', fecha_str)
+            fecha_mes = fecha_año = None
+            if fecha_match:
+                fecha_mes = fecha_match.group(1).zfill(2)
+                fecha_año = fecha_match.group(2)
+                if len(fecha_año) == 2:
+                    fecha_año = "20" + fecha_año
+            # Filtros robustos
+            if mes:
+                mes_busqueda = str(mes).zfill(2)
+                if not fecha_mes or fecha_mes != mes_busqueda:
                     continue
-            elif mes:
-                fecha_match = re.search(r'(\d{1,2})[/\\|]', fecha_str)
-                if fecha_match:
-                    fecha_mes = fecha_match.group(1)
-                    if len(fecha_mes) == 1:
-                        fecha_mes = "0" + fecha_mes
-                    mes_busqueda = str(mes).zfill(2)
-                    if fecha_mes != mes_busqueda:
-                        continue
-                else:
+            if año:
+                año_busqueda = str(año)
+                if len(año_busqueda) == 2:
+                    año_busqueda = "20" + año_busqueda
+                if not fecha_año or fecha_año != año_busqueda:
                     continue
-            elif año:
-                fecha_match = re.search(r'[/\\|](\d{2,4})', fecha_str)
-                if fecha_match:
-                    fecha_año = fecha_match.group(1)
-                    if len(fecha_año) == 2:
-                        fecha_año = "20" + fecha_año
-                    año_busqueda = str(año)
-                    if len(año_busqueda) == 2:
-                        año_busqueda = "20" + año_busqueda
-                    if fecha_año != año_busqueda:
-                        continue
-                else:
-                    continue
+
             resultado = f"💳 {tarjeta}\n🏦 {banco}\n🕒 {fecha_str}"
             resultados.append(resultado)
             contador += 1
