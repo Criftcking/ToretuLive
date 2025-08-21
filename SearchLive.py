@@ -1,4 +1,5 @@
-import sqlite3
+import psycopg2
+import psycopg2.extras
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import re
@@ -9,7 +10,17 @@ import time
 # === CONFIGURACIÓN ===
 BOT_TOKEN = "7749960022:AAHRgIbhiV0gAngpCQzSzjpdYthhvn6ghX0"
 ARCHIVO_TARJETAS = "Team_Wolf_Lives_mensajes.txt"
-DB_USUARIOS = "usuarios.db"
+
+# Configuración de conexión PostgreSQL usando variables de entorno
+import os
+PGUSER = os.environ.get("PGUSER")
+POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD")
+RAILWAY_PRIVATE_DOMAIN = os.environ.get("RAILWAY_PRIVATE_DOMAIN")
+PGDATABASE = os.environ.get("PGDATABASE")
+BASE_URL = f"postgresql://{PGUSER}:{POSTGRES_PASSWORD}@{RAILWAY_PRIVATE_DOMAIN}:5432/{PGDATABASE}"
+
+def get_conn():
+    return psycopg2.connect(BASE_URL, cursor_factory=psycopg2.extras.DictCursor)
 
 # Lista de administradores (agrega más IDs según necesites)
 ADMIN_IDS = [5857858003, 1234567890]  # <-- Agrega los IDs de los administradores
@@ -24,55 +35,49 @@ PLAN_LIMITES = {
 
 # === BASE DE DATOS DE USUARIOS ===
 def init_db():
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
     c.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY,
+            id BIGINT PRIMARY KEY,
             username TEXT DEFAULT NULL,
             plan TEXT NOT NULL DEFAULT 'free',
-            ultima_solicitud INTEGER DEFAULT 0,
+            ultima_solicitud BIGINT DEFAULT 0,
             solicitudes_realizadas INTEGER DEFAULT 0,
-            solicitudes_12h INTEGER DEFAULT 0,  -- Nueva columna para contador de 12 horas
-            ultima_solicitud_12h INTEGER DEFAULT 0,  -- Nueva columna para timestamp de primera solicitud en periodo de 12h
-            fecha_registro INTEGER DEFAULT 0,
-            fecha_expiracion INTEGER DEFAULT 0
+            solicitudes_12h INTEGER DEFAULT 0,
+            ultima_solicitud_12h BIGINT DEFAULT 0,
+            fecha_registro BIGINT DEFAULT 0,
+            fecha_expiracion BIGINT DEFAULT 0
         )
     """)
     conn.commit()
     conn.close()
 
 def usuario_autorizado(user_id: int) -> bool:
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id, plan, fecha_expiracion FROM usuarios WHERE id = ?", (user_id,))
+    c.execute("SELECT id, plan, fecha_expiracion FROM usuarios WHERE id = %s", (user_id,))
     resultado = c.fetchone()
     conn.close()
-    
     if not resultado:
         return False  # Usuario no existe
-        
-    # Verificar si la suscripción ha expirado (solo para planes pagos)
     id_usuario, plan, fecha_expiracion = resultado
-    
     if plan != "free" and fecha_expiracion and time.time() > fecha_expiracion:
-        # Si el plan pago expiró, cambiar a plan free
         cambiar_a_plan_free(user_id)
-        return True  # El usuario free sigue teniendo acceso pero con límites
-        
-    return True  # Usuario existe y tiene plan válido
+        return True
+    return True
 
 def cambiar_a_plan_free(user_id: int):
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("UPDATE usuarios SET plan = 'free', fecha_expiracion = 0 WHERE id = ?", (user_id,))
+    c.execute("UPDATE usuarios SET plan = 'free', fecha_expiracion = 0 WHERE id = %s", (user_id,))
     conn.commit()
     conn.close()
 
 def obtener_plan_usuario(user_id: int) -> str:
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT plan FROM usuarios WHERE id = ?", (user_id,))
+    c.execute("SELECT plan FROM usuarios WHERE id = %s", (user_id,))
     resultado = c.fetchone()
     conn.close()
     return resultado[0] if resultado else "free"
@@ -82,9 +87,9 @@ def obtener_limites_usuario(user_id: int) -> dict:
     return PLAN_LIMITES.get(plan, PLAN_LIMITES["free"])
 
 def obtener_tiempo_restante(user_id: int) -> str:
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT plan, fecha_expiracion FROM usuarios WHERE id = ?", (user_id,))
+    c.execute("SELECT plan, fecha_expiracion FROM usuarios WHERE id = %s", (user_id,))
     resultado = c.fetchone()
     conn.close()
     
@@ -117,9 +122,9 @@ def obtener_tiempo_restante(user_id: int) -> str:
         return f"{minutos} minutos"
 
 def obtener_info_usuario_completa(user_id: int) -> dict:
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id, username, plan, ultima_solicitud, solicitudes_realizadas, solicitudes_12h, ultima_solicitud_12h, fecha_registro, fecha_expiracion FROM usuarios WHERE id = ?", (user_id,))
+    c.execute("SELECT id, username, plan, ultima_solicitud, solicitudes_realizadas, solicitudes_12h, ultima_solicitud_12h, fecha_registro, fecha_expiracion FROM usuarios WHERE id = %s", (user_id,))
     resultado = c.fetchone()
     conn.close()
     
@@ -187,9 +192,9 @@ def obtener_info_usuario_completa(user_id: int) -> dict:
     }
 
 def puede_realizar_solicitud(user_id: int) -> bool:
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT plan, ultima_solicitud, solicitudes_realizadas, solicitudes_12h, ultima_solicitud_12h FROM usuarios WHERE id = ?", (user_id,))
+    c.execute("SELECT plan, ultima_solicitud, solicitudes_realizadas, solicitudes_12h, ultima_solicitud_12h FROM usuarios WHERE id = %s", (user_id,))
     resultado = c.fetchone()
     conn.close()
     
@@ -220,99 +225,82 @@ def puede_realizar_solicitud(user_id: int) -> bool:
     return solicitudes_realizadas < limites["solicitudes_por_hora"]
 
 def registrar_solicitud(user_id: int):
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
     tiempo_actual = int(time.time())
-    
-    # Obtener información actual del usuario
-    c.execute("SELECT plan, solicitudes_12h, ultima_solicitud_12h FROM usuarios WHERE id = ?", (user_id,))
+    c.execute("SELECT plan, solicitudes_12h, ultima_solicitud_12h FROM usuarios WHERE id = %s", (user_id,))
     resultado = c.fetchone()
-    
     if resultado:
         plan, solicitudes_12h_actual, ultima_solicitud_12h_actual = resultado
-        
-        # Para usuarios free, manejar el contador de 12 horas
         if plan == "free":
-            # Si es la primera solicitud del periodo de 12 horas, establecer timestamp
             if solicitudes_12h_actual == 0 or (tiempo_actual - ultima_solicitud_12h_actual) > 12 * 3600:
                 c.execute("""
                     UPDATE usuarios 
-                    SET ultima_solicitud = ?, solicitudes_realizadas = 1, 
-                        solicitudes_12h = 1, ultima_solicitud_12h = ?
-                    WHERE id = ?
+                    SET ultima_solicitud = %s, solicitudes_realizadas = 1, 
+                        solicitudes_12h = 1, ultima_solicitud_12h = %s
+                    WHERE id = %s
                 """, (tiempo_actual, tiempo_actual, user_id))
             else:
-                # Incrementar contador de 12 horas
                 c.execute("""
                     UPDATE usuarios 
-                    SET ultima_solicitud = ?, solicitudes_realizadas = solicitudes_realizadas + 1, 
+                    SET ultima_solicitud = %s, solicitudes_realizadas = solicitudes_realizadas + 1, 
                         solicitudes_12h = solicitudes_12h + 1
-                    WHERE id = ?
+                    WHERE id = %s
                 """, (tiempo_actual, user_id))
         else:
-            # Para otros planes, solo incrementar contador normal
             c.execute("""
                 UPDATE usuarios 
-                SET ultima_solicitud = ?, solicitudes_realizadas = solicitudes_realizadas + 1 
-                WHERE id = ?
+                SET ultima_solicitud = %s, solicitudes_realizadas = solicitudes_realizadas + 1 
+                WHERE id = %s
             """, (tiempo_actual, user_id))
-    
     conn.commit()
     conn.close()
 
 def reiniciar_contador_solicitudes(user_id: int):
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("UPDATE usuarios SET solicitudes_realizadas = 0 WHERE id = ?", (user_id,))
+    c.execute("UPDATE usuarios SET solicitudes_realizadas = 0 WHERE id = %s", (user_id,))
     conn.commit()
     conn.close()
 
 def reiniciar_contador_12h(user_id: int):
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("UPDATE usuarios SET solicitudes_12h = 0, ultima_solicitud_12h = 0 WHERE id = ?", (user_id,))
+    c.execute("UPDATE usuarios SET solicitudes_12h = 0, ultima_solicitud_12h = 0 WHERE id = %s", (user_id,))
     conn.commit()
     conn.close()
 
 def registrar_usuario(user_id: int, username: str = None, plan: str = "free") -> bool:
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id, username FROM usuarios WHERE id = ?", (user_id,))
+    c.execute("SELECT id, username FROM usuarios WHERE id = %s", (user_id,))
     resultado = c.fetchone()
-    
-    # Calcular fecha de expiración solo para planes pagos
     if plan.lower() != "free":
         duracion_dias = PLAN_LIMITES[plan.lower()]["duracion_dias"]
         fecha_expiracion = int(time.time()) + (duracion_dias * 24 * 3600)
     else:
         fecha_expiracion = 0
-    
     if resultado:
-        # Usuario existe, actualizar plan, fecha de expiración y username si es necesario
         usuario_id, username_actual = resultado
         nuevo_username = username if username else username_actual
-        
-        c.execute("UPDATE usuarios SET plan = ?, fecha_expiracion = ?, username = ? WHERE id = ?", 
+        c.execute("UPDATE usuarios SET plan = %s, fecha_expiracion = %s, username = %s WHERE id = %s", 
                  (plan.lower(), fecha_expiracion, nuevo_username, user_id))
         conn.commit()
         conn.close()
         return True
     else:
-        # Nuevo usuario
-        c.execute("INSERT INTO usuarios (id, username, plan, fecha_registro, fecha_expiracion) VALUES (?, ?, ?, ?, ?)", 
+        c.execute("INSERT INTO usuarios (id, username, plan, fecha_registro, fecha_expiracion) VALUES (%s, %s, %s, %s, %s)", 
                  (user_id, username, plan.lower(), int(time.time()), fecha_expiracion))
         conn.commit()
         conn.close()
         return True
 
 def eliminar_plan_usuario(user_id: int) -> bool:
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id FROM usuarios WHERE id = ?", (user_id,))
-    
+    c.execute("SELECT id FROM usuarios WHERE id = %s", (user_id,))
     if c.fetchone():
-        # Usuario existe, cambiar a plan free
-        c.execute("UPDATE usuarios SET plan = 'free', fecha_expiracion = 0 WHERE id = ?", (user_id,))
+        c.execute("UPDATE usuarios SET plan = 'free', fecha_expiracion = 0 WHERE id = %s", (user_id,))
         conn.commit()
         conn.close()
         return True
@@ -321,27 +309,21 @@ def eliminar_plan_usuario(user_id: int) -> bool:
         return False
 
 def restaurar_plan_usuario(user_id: int) -> bool:
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT plan FROM usuarios WHERE id = ?", (user_id,))
+    c.execute("SELECT plan FROM usuarios WHERE id = %s", (user_id,))
     resultado = c.fetchone()
-    
     if not resultado:
         conn.close()
         return False
-        
     plan = resultado[0]
-    
-    # Restaurar fecha de expiración solo para planes pagos
     if plan != "free":
         duracion_dias = PLAN_LIMITES[plan]["duracion_dias"]
         fecha_expiracion = int(time.time()) + (duracion_dias * 24 * 3600)
-        c.execute("UPDATE usuarios SET fecha_expiracion = ?, ultima_solicitud = 0, solicitudes_realizadas = 0, solicitudes_12h = 0, ultima_solicitud_12h = 0 WHERE id = ?", 
+        c.execute("UPDATE usuarios SET fecha_expiracion = %s, ultima_solicitud = 0, solicitudes_realizadas = 0, solicitudes_12h = 0, ultima_solicitud_12h = 0 WHERE id = %s", 
                  (fecha_expiracion, user_id))
     else:
-        # Para plan free, solo reiniciar contadores
-        c.execute("UPDATE usuarios SET ultima_solicitud = 0, solicitudes_realizadas = 0, solicitudes_12h = 0, ultima_solicitud_12h = 0 WHERE id = ?", (user_id,))
-    
+        c.execute("UPDATE usuarios SET ultima_solicitud = 0, solicitudes_realizadas = 0, solicitudes_12h = 0, ultima_solicitud_12h = 0 WHERE id = %s", (user_id,))
     conn.commit()
     conn.close()
     return True
@@ -453,9 +435,9 @@ async def bin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         plan = obtener_plan_usuario(user_id)
         if plan == "free":
             # Obtener información del contador de 12 horas
-            conn = sqlite3.connect(DB_USUARIOS)
+            conn = get_conn()
             c = conn.cursor()
-            c.execute("SELECT solicitudes_12h, ultima_solicitud_12h FROM usuarios WHERE id = ?", (user_id,))
+            c.execute("SELECT solicitudes_12h, ultima_solicitud_12h FROM usuarios WHERE id = %s", (user_id,))
             resultado = c.fetchone()
             conn.close()
             
@@ -562,9 +544,9 @@ async def binfecha_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         plan = obtener_plan_usuario(user_id)
         if plan == "free":
             # Obtener información del contador de 12 horas
-            conn = sqlite3.connect(DB_USUARIOS)
+            conn = get_conn()
             c = conn.cursor()
-            c.execute("SELECT solicitudes_12h, ultima_solicitud_12h FROM usuarios WHERE id = ?", (user_id,))
+            c.execute("SELECT solicitudes_12h, ultima_solicitud_12h FROM usuarios WHERE id = %s", (user_id,))
             resultado = c.fetchone()
             conn.close()
             
@@ -945,7 +927,7 @@ async def users_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🚫 Solo los administradores pueden usar este comando.")
         return
 
-    conn = sqlite3.connect(DB_USUARIOS)
+    conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT id, username, plan, fecha_expiracion, solicitudes_realizadas FROM usuarios")
     usuarios = c.fetchall()
