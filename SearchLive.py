@@ -5,6 +5,8 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import re
 import os
+import psycopg2
+import psycopg2.extras
 from datetime import datetime, timedelta
 import time
 
@@ -40,6 +42,11 @@ async def deleteuser_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # === CONFIGURACIÓN ===
 BOT_TOKEN = "7749960022:AAHRgIbhiV0gAngpCQzSzjpdYthhvn6ghX0"
 ARCHIVO_TARJETAS = "Team_Wolf_Lives_mensajes.txt"
+
+# Configuración de conexión PostgreSQL (igual que en savelives.py)
+BASE_URL = "postgresql://postgres:HHksJErrGGMthwnZbmGxpckTusSlfrmK@crossover.proxy.rlwy.net:26803/railway"
+def get_conn():
+    return psycopg2.connect(BASE_URL, cursor_factory=psycopg2.extras.DictCursor)
 
 # Configuración de conexión PostgreSQL usando variables de entorno
 import os
@@ -363,63 +370,50 @@ def es_administrador(user_id: int) -> bool:
 
 # === BUSCAR BINS ===
 def buscar_bins(bin_input: str, mes=None, año=None, limite=1) -> list:
-    if not os.path.exists(ARCHIVO_TARJETAS):
-        return []
+    # Leer bloques desde la base de datos, eliminando duplicados
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT bloque FROM bloques_guardados")
+    bloques_db = [row[0] for row in c.fetchall()]
+    conn.close()
 
-    with open(ARCHIVO_TARJETAS, 'r', encoding='utf-8') as f:
-        contenido = f.read()
-
-    bloques = contenido.split("━━━━━━━━━━━━━━━━━━━━━━━━")
+    # Limpiar duplicados (como en savelives.py)
+    bloques = list(dict.fromkeys([b.strip() for b in bloques_db if b.strip()]))
     resultados = []
     contador = 0
 
     for bloque in bloques:
         if contador >= limite:
             break
-            
         bloque = bloque.strip()
         if not bloque:
             continue
-
         match_tarjeta = re.search(r'💳 Tarjeta: ([\d|]+)', bloque)
         match_banco = re.search(r'💰 Banco: (.+)', bloque)
         match_fecha = re.search(r'🕒 Fecha: (.+)', bloque)
-
         if match_tarjeta and bin_input in match_tarjeta.group(1):
             tarjeta = match_tarjeta.group(1)
             banco = match_banco.group(1) if match_banco else "Desconocido"
             fecha_str = match_fecha.group(1) if match_fecha else "Desconocida"
-            
             # Verificar filtros de fecha si se proporcionan
             if mes and año:
-                # Buscar mes y año en la fecha
                 fecha_match = re.search(r'(\d{1,2})[/\\|](\d{2,4})', fecha_str)
                 if fecha_match:
                     fecha_mes = fecha_match.group(1)
                     fecha_año = fecha_match.group(2)
-                    
-                    # Normalizar formato de año (2 dígitos a 4 dígitos)
                     if len(fecha_año) == 2:
                         fecha_año = "20" + fecha_año
-                    
-                    # Normalizar formato de mes (asegurar 2 dígitos)
                     if len(fecha_mes) == 1:
                         fecha_mes = "0" + fecha_mes
-                    
-                    # Normalizar mes y año de búsqueda
                     mes_busqueda = str(mes).zfill(2)
                     año_busqueda = str(año)
                     if len(año_busqueda) == 2:
                         año_busqueda = "20" + año_busqueda
-                    
-                    # Si no coinciden, saltar esta tarjeta
                     if fecha_mes != mes_busqueda or fecha_año != año_busqueda:
                         continue
                 else:
-                    # Si no se puede parsear la fecha y se requirió filtro, saltar
                     continue
             elif mes:
-                # Solo filtro por mes
                 fecha_match = re.search(r'(\d{1,2})[/\\|]', fecha_str)
                 if fecha_match:
                     fecha_mes = fecha_match.group(1)
@@ -431,7 +425,6 @@ def buscar_bins(bin_input: str, mes=None, año=None, limite=1) -> list:
                 else:
                     continue
             elif año:
-                # Solo filtro por año
                 fecha_match = re.search(r'[/\\|](\d{2,4})', fecha_str)
                 if fecha_match:
                     fecha_año = fecha_match.group(1)
@@ -444,11 +437,9 @@ def buscar_bins(bin_input: str, mes=None, año=None, limite=1) -> list:
                         continue
                 else:
                     continue
-
             resultado = f"💳 {tarjeta}\n🏦 {banco}\n🕒 {fecha_str}"
             resultados.append(resultado)
             contador += 1
-
     return resultados
 
 # === /bin ===
