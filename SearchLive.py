@@ -12,7 +12,7 @@ ARCHIVO_TARJETAS = "Team_Wolf_Lives_mensajes.txt"
 DB_USUARIOS = "usuarios.db"
 
 # Lista de administradores (agrega más IDs según necesites)
-ADMIN_IDS = [5857858003, 1234567890]  # <-- Agrega los IDs de los administradores
+ADMIN_IDS = [5857858003, 1950254984]  # <-- Agrega los IDs de los administradores
 
 # Límites de planes - MODIFICADO para usuarios free
 PLAN_LIMITES = {
@@ -1028,3 +1028,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
