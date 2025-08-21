@@ -12,7 +12,7 @@ ARCHIVO_TARJETAS = "Team_Wolf_Lives_mensajes.txt"
 DB_USUARIOS = "usuarios.db"
 
 # Lista de administradores (agrega más IDs según necesites)
-ADMIN_IDS = [5857858003, 1950254984]  # <-- Agrega los IDs de los administradores
+ADMIN_IDS = [5857858003, 1234567890]  # <-- Agrega los IDs de los administradores
 
 # Límites de planes - MODIFICADO para usuarios free
 PLAN_LIMITES = {
@@ -937,6 +937,7 @@ async def miplan_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === /users (solo admin) ===
 # === /users (solo admin) ===
+# === /users (solo admin) ===
 async def users_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sender_id = update.effective_user.id
 
@@ -954,18 +955,15 @@ async def users_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📝 No hay usuarios registrados.")
         return
 
-    respuesta = "👥 *USUARIOS REGISTRADOS - INFORMACIÓN DETALLADA:*\n\n"
+    # Crear una lista de mensajes en lugar de uno grande
+    mensajes = []
+    mensaje_actual = "👥 *USUARIOS REGISTRADOS - INFORMACIÓN DETALLADA:*\n\n"
     
     for usuario in usuarios:
         user_id, username, plan, fecha_expiracion, solicitudes_realizadas = usuario
         
-        # Formatear el username y escapar caracteres especiales de Markdown
-        if username:
-            # Escapar caracteres especiales de MarkdownV2
-            username_escaped = username.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)').replace('~', '\\~').replace('`', '\\`').replace('>', '\\>').replace('#', '\\#').replace('+', '\\+').replace('-', '\\-').replace('=', '\\=').replace('|', '\\|').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.').replace('!', '\\!')
-            username_display = f"@{username_escaped}"
-        else:
-            username_display = "Sin username"
+        # Formatear el username de manera segura
+        username_display = f"@{username}" if username else "Sin username"
         
         # Obtener límites del plan
         limites = PLAN_LIMITES.get(plan, PLAN_LIMITES["free"])
@@ -987,7 +985,7 @@ async def users_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Obtener información de uso actual
         uso_actual = f"{solicitudes_realizadas}/{limites['solicitudes_por_hora']}"
         
-        respuesta += f"""
+        usuario_info = f"""
 👤 *ID:* `{user_id}`
 👥 *Username:* {username_display}
 📋 *Plan:* {plan.upper()}
@@ -998,13 +996,30 @@ async def users_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ────────────────────────────
 """
 
-    # Dividir la respuesta si es demasiado larga para Telegram
-    if len(respuesta) > 4000:
-        partes = [respuesta[i:i+4000] for i in range(0, len(respuesta), 4000)]
-        for parte in partes:
-            await update.message.reply_text(parte, parse_mode="Markdown")
-    else:
-        await update.message.reply_text(respuesta, parse_mode="Markdown")
+        # Si agregar esta información excede el límite, enviar el mensaje actual y empezar uno nuevo
+        if len(mensaje_actual) + len(usuario_info) > 4000:
+            mensajes.append(mensaje_actual)
+            mensaje_actual = usuario_info
+        else:
+            mensaje_actual += usuario_info
+    
+    # Agregar el último mensaje
+    if mensaje_actual:
+        mensajes.append(mensaje_actual)
+    
+    # Enviar todos los mensajes
+    for i, mensaje in enumerate(mensajes):
+        try:
+            # Usar parse_mode=None para evitar problemas con Markdown
+            await update.message.reply_text(mensaje, parse_mode=None)
+        except Exception as e:
+            # Si falla, intentar enviar sin formato
+            try:
+                await update.message.reply_text(f"Parte {i+1}/{len(mensajes)}:\n{mensaje}")
+            except Exception as e2:
+                print(f"Error al enviar parte {i+1}: {e2}")
+    
+    await update.message.reply_text(f"📊 Total de usuarios: {len(usuarios)}")
 
 # === INICIO DEL BOT ===
 def main():
@@ -1028,4 +1043,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
