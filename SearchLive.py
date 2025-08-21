@@ -17,7 +17,7 @@ PGUSER = os.environ.get("PGUSER")
 POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD")
 RAILWAY_PRIVATE_DOMAIN = os.environ.get("RAILWAY_PRIVATE_DOMAIN")
 PGDATABASE = os.environ.get("PGDATABASE")
-BASE_URL = f"postgresql://{PGUSER}:{POSTGRES_PASSWORD}@{RAILWAY_PRIVATE_DOMAIN}:5432/{PGDATABASE}"
+BASE_URL = f"postgresql://postgres:HHksJErrGGMthwnZbmGxpckTusSlfrmK@crossover.proxy.rlwy.net:26803/railway"
 
 def get_conn():
     return psycopg2.connect(BASE_URL, cursor_factory=psycopg2.extras.DictCursor)
