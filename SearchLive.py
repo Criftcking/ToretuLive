@@ -53,7 +53,7 @@ def get_conn():
     return psycopg2.connect(BASE_URL, cursor_factory=psycopg2.extras.DictCursor)
 
 # Lista de administradores (agrega más IDs según necesites)
-ADMIN_IDS = [5857858003, 1234567890]  # <-- Agrega los IDs de los administradores
+ADMIN_IDS = [5857858003, 6142451295, 1950254984]  # <-- Agrega los IDs de los administradores
 
 # Límites de planes - MODIFICADO para usuarios free
 PLAN_LIMITES = {
@@ -1056,3 +1056,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
