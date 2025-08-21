@@ -25,7 +25,9 @@ import os
 
 api_id = 26682067
 api_hash = '68fa0932dbe4f52c38a53e36c617338d'
-client = TelegramClient('session', api_id, api_hash)
+# Usar un archivo de sesión único para este bot
+SESSION_FILE = 'savelives.session'
+client = TelegramClient(SESSION_FILE, api_id, api_hash)
 
 SEPARADOR = "━━━━━━━━━━━━━━━━━━━━━━━━"
 
