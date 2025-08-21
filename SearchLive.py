@@ -379,6 +379,8 @@ def buscar_bins(bin_input: str, mes=None, año=None, limite=1) -> list:
 
     # Limpiar duplicados (como en savelives.py)
     bloques = list(dict.fromkeys([b.strip() for b in bloques_db if b.strip()]))
+    import random
+    random.shuffle(bloques)  # Mezclar los bloques para resultados aleatorios
     resultados = []
     contador = 0
 
