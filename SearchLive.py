@@ -17,9 +17,9 @@ ADMIN_IDS = [5857858003, 1234567890]  # <-- Agrega los IDs de los administradore
 # Límites de planes - MODIFICADO para usuarios free
 PLAN_LIMITES = {
     "free": {"tarjetas_por_solicitud": 1, "solicitudes_por_hora": 3, "solicitudes_por_12h": 3, "duracion_dias": 0, "precio": 0},
-    "basico": {"tarjetas_por_solicitud": 5, "solicitudes_por_hora": 10, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 10},
-    "premium": {"tarjetas_por_solicitud": 10, "solicitudes_por_hora": 20, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 20},
-    "vip": {"tarjetas_por_solicitud": 15, "solicitudes_por_hora": 35, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 30}
+    "basico": {"tarjetas_por_solicitud": 2, "solicitudes_por_hora": 5, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 10},
+    "premium": {"tarjetas_por_solicitud": 2, "solicitudes_por_hora": 10, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 20},
+    "vip": {"tarjetas_por_solicitud": 3, "solicitudes_por_hora": 20, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 30}
 }
 
 # === BASE DE DATOS DE USUARIOS ===
@@ -684,16 +684,16 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
    • 3 solicitudes por 12 horas
 
 💎 BÁSICO - $10 USD (1 semana)
-   • Límite de 5 tarjetas por solicitud
-   • 10 solicitudes por hora
+   • Límite de 2 tarjetas por solicitud
+   • 5 solicitudes por hora
 
 🌟 PREMIUM - $20 USD (1 semana)
-   • Límite de 10 tarjetas por solicitud
-   • 20 solicitudes por hora
+   • Límite de 2 tarjetas por solicitud
+   • 10 solicitudes por hora
 
 👑 VIP - $30 USD (1 semana)
-   • Límite de 15 tarjetas por solicitud
-   • 35 solicitudes por hora
+   • Límite de 3 tarjetas por solicitud
+   • 20 solicitudes por hora
 
 💡 Para actualizar a un plan premium, contacta a un administrador.
 
