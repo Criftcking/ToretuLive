@@ -53,7 +53,7 @@ def get_conn():
     return psycopg2.connect(BASE_URL, cursor_factory=psycopg2.extras.DictCursor)
 
 # Lista de administradores (agrega más IDs según necesites)
-ADMIN_IDS = [5857858003, 6142451295, 1950254984]  # <-- Agrega los IDs de los administradores
+ADMIN_IDS = [5857858003, 6142451295, 1950254984]   # <-- Agrega los IDs de los administradores
 
 # Límites de planes - MODIFICADO para usuarios free
 PLAN_LIMITES = {
@@ -533,9 +533,9 @@ async def bin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     resultados = buscar_bins(bin_input, mes, año, max_tarjetas)
-    registrar_solicitud(user_id)  # Registrar la solicitud después de una búsqueda exitosa
 
     if resultados:
+        registrar_solicitud(user_id)  # Registrar la solicitud solo si hay resultados
         filtro_info = ""
         if mes and año:
             filtro_info = f" con fecha {mes}|{año}"
@@ -543,10 +543,8 @@ async def bin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             filtro_info = f" con mes {mes}"
         elif año:
             filtro_info = f" con año {año}"
-            
         respuesta = f"🔍 Resultados encontrados para BIN {bin_input}{filtro_info}:\n\n"
         respuesta += "\n\n".join(resultados)
-        
         if len(resultados) == max_tarjetas:
             plan = obtener_plan_usuario(user_id)
             if plan == "free":
@@ -1056,4 +1054,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
