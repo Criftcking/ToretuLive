@@ -391,31 +391,27 @@ def buscar_bins(bin_input: str, mes=None, año=None, limite=1) -> list:
         match_tarjeta = re.search(r'💳 Tarjeta: ([\d|]+)', bloque)
         match_banco = re.search(r'💰 Banco: (.+)', bloque)
         match_fecha = re.search(r'🕒 Fecha: (.+)', bloque)
-        if match_tarjeta and bin_input in match_tarjeta.group(1):
+        if match_tarjeta:
             tarjeta = match_tarjeta.group(1)
-            banco = match_banco.group(1) if match_banco else "Desconocido"
-            fecha_str = match_fecha.group(1) if match_fecha else "Desconocida"
-
-            # Normalizar fecha: soporta 1 o 2 dígitos de mes, 2 o 4 de año, y separadores / | \
-            fecha_match = re.search(r'(\d{1,2})\s*[/\\|]\s*(\d{2,4})', fecha_str)
-            fecha_mes = fecha_año = None
-            if fecha_match:
-                fecha_mes = fecha_match.group(1).zfill(2)
-                fecha_año = fecha_match.group(2)
-                if len(fecha_año) == 2:
-                    fecha_año = "20" + fecha_año
-            # Filtros robustos
+            # Buscar el BIN como prefijo de la tarjeta (puede ser de 4 a 10+ dígitos)
+            if not tarjeta.startswith(bin_input):
+                continue
+            # Extraer mes y año de expiración de la tarjeta (ej: 4147342026652612|02|2029|530)
+            partes = tarjeta.split('|')
+            mes_exp = partes[1] if len(partes) > 1 else None
+            año_exp = partes[2] if len(partes) > 2 else None
             if mes:
                 mes_busqueda = str(mes).zfill(2)
-                if not fecha_mes or fecha_mes != mes_busqueda:
+                if not mes_exp or mes_exp.zfill(2) != mes_busqueda:
                     continue
             if año:
                 año_busqueda = str(año)
                 if len(año_busqueda) == 2:
                     año_busqueda = "20" + año_busqueda
-                if not fecha_año or fecha_año != año_busqueda:
+                if not año_exp or (len(año_exp) == 2 and ("20" + año_exp) != año_busqueda) or (len(año_exp) == 4 and año_exp != año_busqueda):
                     continue
-
+            banco = match_banco.group(1) if match_banco else "Desconocido"
+            fecha_str = match_fecha.group(1) if match_fecha else "Desconocida"
             resultado = f"💳 {tarjeta}\n🏦 {banco}\n🕒 {fecha_str}"
             resultados.append(resultado)
             contador += 1
