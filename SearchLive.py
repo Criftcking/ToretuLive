@@ -1,3 +1,13 @@
+
+import psycopg2
+import psycopg2.extras
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import re
+import os
+from datetime import datetime, timedelta
+import time
+
 # === /deleteuser (solo admin) ===
 async def deleteuser_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sender_id = update.effective_user.id
@@ -26,14 +36,6 @@ async def deleteuser_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         await update.message.reply_text(f"❌ El usuario {target_id} no existe en la base de datos.")
     conn.close()
-import psycopg2
-import psycopg2.extras
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-import re
-import os
-from datetime import datetime, timedelta
-import time
 
 # === CONFIGURACIÓN ===
 BOT_TOKEN = "7749960022:AAHRgIbhiV0gAngpCQzSzjpdYthhvn6ghX0"
