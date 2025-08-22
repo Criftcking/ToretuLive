@@ -770,6 +770,7 @@ async def info_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🔍 Límites actuales:
    • Tarjetas por solicitud: {info['limites']['tarjetas_por_solicitud']}
    • Solicitudes por hora: {info['limites']['solicitudes_por_hora']}
+   • Solicitudes cada 12 horas:*{info['limites']['solicitudes_por_12h']}*
 
 📈 Estadísticas de uso:
    • Última solicitud: {info['ultima_solicitud']}
