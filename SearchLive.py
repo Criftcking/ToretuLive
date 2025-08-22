@@ -1,5 +1,4 @@
 
-
 import psycopg2
 import psycopg2.extras
 from telegram import Update
@@ -10,14 +9,6 @@ import psycopg2
 import psycopg2.extras
 from datetime import datetime, timedelta
 import time
-
-
-def reiniciar_contador_7dias(user_id: int):
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute("UPDATE usuarios SET solicitudes_7dias = 0, ultima_solicitud_7dias = 0 WHERE id = %s", (user_id,))
-    conn.commit()
-    conn.close()
 
 # === /deleteuser (solo admin) ===
 async def deleteuser_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -73,10 +64,10 @@ ADMIN_IDS = [5857858003, 6142451295, 1950254984]   # <-- Agrega los IDs de los a
 
 # Límites de planes - MODIFICADO para usuarios free
 PLAN_LIMITES = {
-    "free": {"tarjetas_por_solicitud": 1, "solicitudes_por_hora": 1, "solicitudes_por_12h": 1, "duracion_dias": 0, "precio": 0, "solicitudes_por_7dias": 1},
-    "basico": {"tarjetas_por_solicitud": 2, "solicitudes_por_hora": 5, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 10, "solicitudes_por_7dias": 999},
-    "premium": {"tarjetas_por_solicitud": 2, "solicitudes_por_hora": 10, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 20, "solicitudes_por_7dias": 999},
-    "vip": {"tarjetas_por_solicitud": 3, "solicitudes_por_hora": 20, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 30, "solicitudes_por_7dias": 999}
+    "free": {"tarjetas_por_solicitud": 1, "solicitudes_por_hora": 0, "solicitudes_por_12h": 1, "duracion_dias": 0, "precio": 0},
+    "basico": {"tarjetas_por_solicitud": 2, "solicitudes_por_hora": 5, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 10},
+    "premium": {"tarjetas_por_solicitud": 2, "solicitudes_por_hora": 10, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 20},
+    "vip": {"tarjetas_por_solicitud": 3, "solicitudes_por_hora": 20, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 30}
 }
 
 # === BASE DE DATOS DE USUARIOS ===
@@ -92,17 +83,13 @@ def init_db():
             solicitudes_realizadas INTEGER DEFAULT 0,
             solicitudes_12h INTEGER DEFAULT 0,
             ultima_solicitud_12h BIGINT DEFAULT 0,
-            solicitudes_7dias INTEGER DEFAULT 0,
-            ultima_solicitud_7dias BIGINT DEFAULT 0,
             fecha_registro BIGINT DEFAULT 0,
             fecha_expiracion BIGINT DEFAULT 0
         )
     """)
-
-        # FORZAR: Asegurar que todos los usuarios free tengan los campos de 7 días inicializados
-    c.execute("UPDATE usuarios SET solicitudes_7dias = 0, ultima_solicitud_7dias = 0 WHERE plan = 'free' AND (solicitudes_7dias IS NULL OR ultima_solicitud_7dias IS NULL)")
     conn.commit()
     conn.close()
+
 def usuario_autorizado(user_id: int) -> bool:
     conn = get_conn()
     c = conn.cursor()
@@ -244,82 +231,65 @@ def obtener_info_usuario_completa(user_id: int) -> dict:
 def puede_realizar_solicitud(user_id: int) -> bool:
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT plan, ultima_solicitud, solicitudes_realizadas, solicitudes_12h, ultima_solicitud_12h, solicitudes_7dias, ultima_solicitud_7dias FROM usuarios WHERE id = %s", (user_id,))
+    c.execute("SELECT plan, ultima_solicitud, solicitudes_realizadas, solicitudes_12h, ultima_solicitud_12h FROM usuarios WHERE id = %s", (user_id,))
     resultado = c.fetchone()
     conn.close()
     
     if not resultado:
         return False
         
-    plan, ultima_solicitud, solicitudes_realizadas, solicitudes_12h, ultima_solicitud_12h, solicitudes_7dias, ultima_solicitud_7dias = resultado
+    plan, ultima_solicitud, solicitudes_realizadas, solicitudes_12h, ultima_solicitud_12h = resultado
+    limites = obtener_limites_usuario(user_id)
     
-    # FORZAR: Si es usuario free, aplicar siempre el límite de 7 días
+    # Verificar límites de 12 horas para usuarios free
     if plan == "free":
         tiempo_actual = time.time()
         
-        # Si no existe el campo de 7 días o está vacío, inicializarlo
-        if ultima_solicitud_7dias is None:
-            reiniciar_contador_7dias(user_id)
+        # Si ha pasado más de 12 horas desde la primera solicitud del periodo, reiniciar contador
+        if ultima_solicitud_12h and (tiempo_actual - ultima_solicitud_12h) > 12 * 3600:
+            reiniciar_contador_12h(user_id)
             return True
             
-        # Si ha pasado más de 7 días desde la última solicitud del periodo, reiniciar contador
-        if (tiempo_actual - ultima_solicitud_7dias) > 7 * 24 * 3600:
-            reiniciar_contador_7dias(user_id)
-            return True
-            
-        # Verificar si ha alcanzado el límite de 1 solicitud en 7 días
-        if solicitudes_7dias >= 1:  # Forzamos 1 solicitud cada 7 días
+        # Verificar si ha alcanzado el límite de 3 solicitudes en 12 horas
+        if solicitudes_12h >= limites["solicitudes_por_12h"]:
             return False
-        return True
     
-    # Para otros planes, mantener la lógica original
-    limites = obtener_limites_usuario(user_id)
-    
-    # Reiniciar contador de hora si ha pasado más de una hora
+    # Reiniciar contador de hora si ha pasado más de una hora (para todos los planes)
     if time.time() - ultima_solicitud > 3600:
         reiniciar_contador_solicitudes(user_id)
         return True
         
     return solicitudes_realizadas < limites["solicitudes_por_hora"]
 
-
 def registrar_solicitud(user_id: int):
     conn = get_conn()
     c = conn.cursor()
     tiempo_actual = int(time.time())
-    c.execute("SELECT plan, solicitudes_12h, ultima_solicitud_12h, solicitudes_7dias, ultima_solicitud_7dias FROM usuarios WHERE id = %s", (user_id,))
+    c.execute("SELECT plan, solicitudes_12h, ultima_solicitud_12h FROM usuarios WHERE id = %s", (user_id,))
     resultado = c.fetchone()
-    
     if resultado:
-        plan, solicitudes_12h_actual, ultima_solicitud_12h_actual, solicitudes_7dias_actual, ultima_solicitud_7dias_actual = resultado
-        
-        # FORZAR: Para usuarios free, siempre usar el sistema de 7 días
+        plan, solicitudes_12h_actual, ultima_solicitud_12h_actual = resultado
         if plan == "free":
-            # Asegurarse de que los campos de 7 días existen
-            if solicitudes_7dias_actual is None or ultima_solicitud_7dias_actual is None:
-                # Inicializar campos si no existen
-                c.execute("UPDATE usuarios SET solicitudes_7dias = 1, ultima_solicitud_7dias = %s WHERE id = %s", 
-                         (tiempo_actual, user_id))
+            if solicitudes_12h_actual == 0 or (tiempo_actual - ultima_solicitud_12h_actual) > 12 * 3600:
+                c.execute("""
+                    UPDATE usuarios 
+                    SET ultima_solicitud = %s, solicitudes_realizadas = 1, 
+                        solicitudes_12h = 1, ultima_solicitud_12h = %s
+                    WHERE id = %s
+                """, (tiempo_actual, tiempo_actual, user_id))
             else:
-                # Actualizar contador de 7 días
-                if (tiempo_actual - ultima_solicitud_7dias_actual) > 7 * 24 * 3600:
-                    # Reiniciar si han pasado más de 7 días
-                    c.execute("UPDATE usuarios SET solicitudes_7dias = 1, ultima_solicitud_7dias = %s WHERE id = %s", 
-                             (tiempo_actual, user_id))
-                else:
-                    # Incrementar contador
-                    c.execute("UPDATE usuarios SET solicitudes_7dias = solicitudes_7dias + 1 WHERE id = %s", (user_id,))
-            
-            # También actualizar la última solicitud general
-            c.execute("UPDATE usuarios SET ultima_solicitud = %s WHERE id = %s", (tiempo_actual, user_id))
+                c.execute("""
+                    UPDATE usuarios 
+                    SET ultima_solicitud = %s, solicitudes_realizadas = solicitudes_realizadas + 1, 
+                        solicitudes_12h = solicitudes_12h + 1
+                    WHERE id = %s
+                """, (tiempo_actual, user_id))
         else:
-            # Lógica original para otros planes
             c.execute("""
                 UPDATE usuarios 
                 SET ultima_solicitud = %s, solicitudes_realizadas = solicitudes_realizadas + 1 
                 WHERE id = %s
             """, (tiempo_actual, user_id))
-    
     conn.commit()
     conn.close()
 
@@ -462,30 +432,28 @@ async def bin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not puede_realizar_solicitud(user_id):
         plan = obtener_plan_usuario(user_id)
         if plan == "free":
-            # Obtener información del contador de 7 días
+            # Obtener información del contador de 12 horas
             conn = get_conn()
             c = conn.cursor()
-            c.execute("SELECT solicitudes_7dias, ultima_solicitud_7dias FROM usuarios WHERE id = %s", (user_id,))
+            c.execute("SELECT solicitudes_12h, ultima_solicitud_12h FROM usuarios WHERE id = %s", (user_id,))
             resultado = c.fetchone()
             conn.close()
             
             if resultado:
-                solicitudes_7dias, ultima_solicitud_7dias = resultado
-                # FORZAR: Siempre mostrar mensaje de 7 días para usuarios free
-                tiempo_restante = (ultima_solicitud_7dias + 7 * 24 * 3600) - time.time()
+                solicitudes_12h, ultima_solicitud_12h = resultado
+                tiempo_restante = (ultima_solicitud_12h + 12 * 3600) - time.time()
                 if tiempo_restante > 0:
-                    dias_restantes = int(tiempo_restante // (24 * 3600))
-                    horas_restantes = int((tiempo_restante % (24 * 3600)) // 3600)
-                    await update.message.reply_text(f"🚫 Has excedido tu límite de 1 solicitud cada 7 días (Plan Free). Tiempo restante: {dias_restantes}d {horas_restantes}h")
+                    horas_restantes = int(tiempo_restante // 3600)
+                    minutos_restantes = int((tiempo_restante % 3600) // 60)
+                    await update.message.reply_text(f"🚫 Has excedido tu límite de 3 solicitudes en 12 horas (Plan Free). Tiempo restante: {horas_restantes}h {minutos_restantes}m")
                 else:
-                    await update.message.reply_text("🚫 Has excedido tu límite de 1 solicitud cada 7 días (Plan Free).")
+                    await update.message.reply_text("🚫 Has excedido tu límite de 3 solicitudes en 12 horas (Plan Free).")
             else:
-                await update.message.reply_text("🚫 Has excedido tu límite de 1 solicitud cada 7 días (Plan Free).")
+                await update.message.reply_text("🚫 Has excedido tu límite de 3 solicitudes en 12 horas (Plan Free).")
         else:
             limites = obtener_limites_usuario(user_id)
             await update.message.reply_text(f"🚫 Has excedido tu límite de {limites['solicitudes_por_hora']} solicitudes por hora.")
         return
-
 
     if len(context.args) == 0:
         await update.message.reply_text("❗ Uso: /bin <primeros dígitos> [mes] [año]")
@@ -691,7 +659,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🎁 FREE - $0 USD (Acceso básico)
    • Límite de 1 tarjeta por solicitud
-   • 1 solicitud cada 7 días
+   • 3 solicitudes por 12 horas
 
 💎 BÁSICO - $10 USD (1 semana)
    • Límite de 2 tarjetas por solicitud
@@ -939,6 +907,7 @@ async def miplan_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Plan actual: *{plan.upper()}*
 • Tarjetas por solicitud: *{limites['tarjetas_por_solicitud']}*
 • Solicitudes por hora: *{limites['solicitudes_por_hora']}*
+• Solicitudes por 12 horas: *{limites['solicitudes_por_12h']}*
 • Tiempo restante: *{tiempo_restante}*
 
 💡 Para renovar o mejorar tu plan, contacta a un administrador.
@@ -994,6 +963,7 @@ async def users_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Obtener información de uso actual
         uso_actual = f"{solicitudes_realizadas}/{limites['solicitudes_por_hora']}"
+        solicitudes12h =  f"{solicitudes_realizadas}/{limites['solicitudes_por_12h']}"
         
         usuario_info = f"""
 👤 *ID:* `{user_id}`
@@ -1003,6 +973,7 @@ async def users_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ⏰ *Tiempo restante:* {tiempo_restante}
 🔍 *Límites:* {limites['tarjetas_por_solicitud']} tarjetas/solicitud
 📊 *Solicitudes/hora:* {uso_actual}
+📊 *Solicitudes/12horas:* {solicitudes12h}
 ────────────────────────────
 """
 
