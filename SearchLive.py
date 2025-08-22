@@ -1,4 +1,5 @@
 
+
 import psycopg2
 import psycopg2.extras
 from telegram import Update
@@ -97,6 +98,9 @@ def init_db():
             fecha_expiracion BIGINT DEFAULT 0
         )
     """)
+
+        # FORZAR: Asegurar que todos los usuarios free tengan los campos de 7 días inicializados
+    c.execute("UPDATE usuarios SET solicitudes_7dias = 0, ultima_solicitud_7dias = 0 WHERE plan = 'free' AND (solicitudes_7dias IS NULL OR ultima_solicitud_7dias IS NULL)")
     conn.commit()
     conn.close()
 def usuario_autorizado(user_id: int) -> bool:
@@ -248,27 +252,36 @@ def puede_realizar_solicitud(user_id: int) -> bool:
         return False
         
     plan, ultima_solicitud, solicitudes_realizadas, solicitudes_12h, ultima_solicitud_12h, solicitudes_7dias, ultima_solicitud_7dias = resultado
-    limites = obtener_limites_usuario(user_id)
     
-    # Verificar límites de 7 días para usuarios free
+    # FORZAR: Si es usuario free, aplicar siempre el límite de 7 días
     if plan == "free":
         tiempo_actual = time.time()
         
+        # Si no existe el campo de 7 días o está vacío, inicializarlo
+        if ultima_solicitud_7dias is None:
+            reiniciar_contador_7dias(user_id)
+            return True
+            
         # Si ha pasado más de 7 días desde la última solicitud del periodo, reiniciar contador
-        if ultima_solicitud_7dias and (tiempo_actual - ultima_solicitud_7dias) > 7 * 24 * 3600:
+        if (tiempo_actual - ultima_solicitud_7dias) > 7 * 24 * 3600:
             reiniciar_contador_7dias(user_id)
             return True
             
         # Verificar si ha alcanzado el límite de 1 solicitud en 7 días
-        if solicitudes_7dias >= limites["solicitudes_por_7dias"]:
+        if solicitudes_7dias >= 1:  # Forzamos 1 solicitud cada 7 días
             return False
+        return True
     
-    # Reiniciar contador de hora si ha pasado más de una hora (para todos los planes)
+    # Para otros planes, mantener la lógica original
+    limites = obtener_limites_usuario(user_id)
+    
+    # Reiniciar contador de hora si ha pasado más de una hora
     if time.time() - ultima_solicitud > 3600:
         reiniciar_contador_solicitudes(user_id)
         return True
         
     return solicitudes_realizadas < limites["solicitudes_por_hora"]
+
 
 def registrar_solicitud(user_id: int):
     conn = get_conn()
@@ -276,38 +289,37 @@ def registrar_solicitud(user_id: int):
     tiempo_actual = int(time.time())
     c.execute("SELECT plan, solicitudes_12h, ultima_solicitud_12h, solicitudes_7dias, ultima_solicitud_7dias FROM usuarios WHERE id = %s", (user_id,))
     resultado = c.fetchone()
+    
     if resultado:
         plan, solicitudes_12h_actual, ultima_solicitud_12h_actual, solicitudes_7dias_actual, ultima_solicitud_7dias_actual = resultado
+        
+        # FORZAR: Para usuarios free, siempre usar el sistema de 7 días
         if plan == "free":
-            # Reiniciar contadores de 12h y 7días si es necesario
-            if solicitudes_12h_actual == 0 or (tiempo_actual - ultima_solicitud_12h_actual) > 12 * 3600:
-                solicitudes_12h_nuevo = 1
-                ultima_solicitud_12h_nuevo = tiempo_actual
+            # Asegurarse de que los campos de 7 días existen
+            if solicitudes_7dias_actual is None or ultima_solicitud_7dias_actual is None:
+                # Inicializar campos si no existen
+                c.execute("UPDATE usuarios SET solicitudes_7dias = 1, ultima_solicitud_7dias = %s WHERE id = %s", 
+                         (tiempo_actual, user_id))
             else:
-                solicitudes_12h_nuevo = solicitudes_12h_actual + 1
-                ultima_solicitud_12h_nuevo = ultima_solicitud_12h_actual
-                
-            if solicitudes_7dias_actual == 0 or (tiempo_actual - ultima_solicitud_7dias_actual) > 7 * 24 * 3600:
-                solicitudes_7dias_nuevo = 1
-                ultima_solicitud_7dias_nuevo = tiempo_actual
-            else:
-                solicitudes_7dias_nuevo = solicitudes_7dias_actual + 1
-                ultima_solicitud_7dias_nuevo = ultima_solicitud_7dias_actual
-                
-            c.execute("""
-                UPDATE usuarios 
-                SET ultima_solicitud = %s, solicitudes_realizadas = 1, 
-                    solicitudes_12h = %s, ultima_solicitud_12h = %s,
-                    solicitudes_7dias = %s, ultima_solicitud_7dias = %s
-                WHERE id = %s
-            """, (tiempo_actual, solicitudes_12h_nuevo, ultima_solicitud_12h_nuevo, 
-                  solicitudes_7dias_nuevo, ultima_solicitud_7dias_nuevo, user_id))
+                # Actualizar contador de 7 días
+                if (tiempo_actual - ultima_solicitud_7dias_actual) > 7 * 24 * 3600:
+                    # Reiniciar si han pasado más de 7 días
+                    c.execute("UPDATE usuarios SET solicitudes_7dias = 1, ultima_solicitud_7dias = %s WHERE id = %s", 
+                             (tiempo_actual, user_id))
+                else:
+                    # Incrementar contador
+                    c.execute("UPDATE usuarios SET solicitudes_7dias = solicitudes_7dias + 1 WHERE id = %s", (user_id,))
+            
+            # También actualizar la última solicitud general
+            c.execute("UPDATE usuarios SET ultima_solicitud = %s WHERE id = %s", (tiempo_actual, user_id))
         else:
+            # Lógica original para otros planes
             c.execute("""
                 UPDATE usuarios 
                 SET ultima_solicitud = %s, solicitudes_realizadas = solicitudes_realizadas + 1 
                 WHERE id = %s
             """, (tiempo_actual, user_id))
+    
     conn.commit()
     conn.close()
 
@@ -447,7 +459,6 @@ async def bin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Verificar límites de solicitudes
-    # Reemplazar la parte del límite excedido en bin_handler:
     if not puede_realizar_solicitud(user_id):
         plan = obtener_plan_usuario(user_id)
         if plan == "free":
@@ -460,6 +471,7 @@ async def bin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if resultado:
                 solicitudes_7dias, ultima_solicitud_7dias = resultado
+                # FORZAR: Siempre mostrar mensaje de 7 días para usuarios free
                 tiempo_restante = (ultima_solicitud_7dias + 7 * 24 * 3600) - time.time()
                 if tiempo_restante > 0:
                     dias_restantes = int(tiempo_restante // (24 * 3600))
