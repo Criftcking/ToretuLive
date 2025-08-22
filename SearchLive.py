@@ -659,7 +659,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🎁 FREE - $0 USD (Acceso básico)
    • Límite de 1 tarjeta por solicitud
-   • 3 solicitudes por 12 horas
+   • 1 solicitud cada 12 horas
 
 💎 BÁSICO - $10 USD (1 semana)
    • Límite de 2 tarjetas por solicitud
