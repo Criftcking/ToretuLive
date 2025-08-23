@@ -444,12 +444,12 @@ async def bin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 tiempo_restante = (ultima_solicitud_12h + 12 * 3600) - time.time()
                 if tiempo_restante > 0:
                     horas_restantes = int(tiempo_restante // 3600)
-                    minutos_restantes = int((tiempo_restante % 3600) // 60)
-                    await update.message.reply_text(f"🚫 Has excedido tu límite de 3 solicitudes en 12 horas (Plan Free). Tiempo restante: {horas_restantes}h {minutos_restantes}m")
+                    minutos_restantes = int((tiempo_restante % 3600) // 60) #Has excedido tu límite de 3 solicitudes en 12 horas (Plan Free)
+                    await update.message.reply_text(f"🚫 La Prueba gratuita ha Terminado para todos los usuarios.. Tiempo restante: {horas_restantes}h {minutos_restantes}m")
                 else:
-                    await update.message.reply_text("🚫 Has excedido tu límite de 3 solicitudes en 12 horas (Plan Free).")
+                    await update.message.reply_text("🚫 La Prueba gratuita ha Terminado para todos los usuarios..")
             else:
-                await update.message.reply_text("🚫 Has excedido tu límite de 3 solicitudes en 12 horas (Plan Free).")
+                await update.message.reply_text("🚫 La Prueba gratuita ha Terminado para todos los usuarios.")
         else:
             limites = obtener_limites_usuario(user_id)
             await update.message.reply_text(f"🚫 Has excedido tu límite de {limites['solicitudes_por_hora']} solicitudes por hora.")
@@ -550,13 +550,13 @@ async def binfecha_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 solicitudes_12h, ultima_solicitud_12h = resultado
                 tiempo_restante = (ultima_solicitud_12h + 12 * 3600) - time.time()
                 if tiempo_restante > 0:
-                    horas_restantes = int(tiempo_restante // 3600)
-                    minutos_restantes = int((tiempo_restante % 3600) // 60)
-                    await update.message.reply_text(f"🚫 Has excedido tu límite de 3 solicitudes en 12 horas (Plan Free). Tiempo restante: {horas_restantes}h {minutos_restantes}m")
+                    horas_restantes = int(tiempo_restante // 3600)           #La Prueba gratuita ha Terminado para todos los usuarios.
+                    minutos_restantes = int((tiempo_restante % 3600) // 60) #Has excedido tu límite de 3 solicitudes en 12 horas (Plan Free).
+                    await update.message.reply_text(f"🚫 La Prueba gratuita ha Terminado para todos los usuarios.. Tiempo restante: {horas_restantes}h {minutos_restantes}m")
                 else:
-                    await update.message.reply_text("🚫 Has excedido tu límite de 3 solicitudes en 12 horas (Plan Free).")
+                    await update.message.reply_text("🚫 La Prueba gratuita ha Terminado para todos los usuarios.")
             else:
-                await update.message.reply_text("🚫 Has excedido tu límite de 3 solicitudes en 12 horas (Plan Free).")
+                await update.message.reply_text("🚫 La Prueba gratuita ha Terminado para todos los usuarios..")
         else:
             limites = obtener_limites_usuario(user_id)
             await update.message.reply_text(f"🚫 Has excedido tu límite de {limites['solicitudes_por_hora']} solicitudes por hora.")
@@ -663,7 +663,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     planes_info = """
 📋 PLANES DISPONIBLES:
 
-    Free: NO DISPONIBLE
+    Free: NO DISPONIBLE. 
     Motivo: Prueba terminada.
 
 💎 BÁSICO - $6 USD (1 semana)
