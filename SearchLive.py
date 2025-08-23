@@ -682,6 +682,11 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ✨ ¡Hola {user_name}! ✨
 Bienvenido al Bot de Búsqueda de Tarjetas @CCCHerker_bot
 
+Nota: Este bot sirve para sacar lives a partir de un BIN siempre
+y cuando se encuentre en la base de datos. el 100% de las ccs 
+que arroje como resultados del bin son lives. 
+
+
 👤 *Creado por: @GhostHat_Real1  
 🤝 *Colaboración con: @thetoretu
 
