@@ -64,7 +64,7 @@ ADMIN_IDS = [5857858003, 6142451295, 1950254984]   # <-- Agrega los IDs de los a
 
 # Límites de planes - MODIFICADO para usuarios free
 PLAN_LIMITES = {
-    "free": {"tarjetas_por_solicitud": 1, "solicitudes_por_hora": 0, "solicitudes_por_12h": 1, "duracion_dias": 0, "precio": 0},
+    "free": {"tarjetas_por_solicitud": 0, "solicitudes_por_hora": 0, "solicitudes_por_12h": 0, "duracion_dias": 0, "precio": 0},
     "basico": {"tarjetas_por_solicitud": 2, "solicitudes_por_hora": 5, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 10},
     "premium": {"tarjetas_por_solicitud": 2, "solicitudes_por_hora": 10, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 20},
     "vip": {"tarjetas_por_solicitud": 3, "solicitudes_por_hora": 20, "solicitudes_por_12h": 999, "duracion_dias": 7, "precio": 30}
@@ -650,26 +650,31 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 {mensaje_registro}
 
+
+
 ─────────────────
 """
+# 🎁 FREE - $0 USD (Acceso básico)
+#    • Límite de 1 tarjeta por solicitud
+#    • 1 solicitud cada 12 horas
+
 
     # Información sobre planes
     planes_info = """
 📋 PLANES DISPONIBLES:
 
-🎁 FREE - $0 USD (Acceso básico)
-   • Límite de 1 tarjeta por solicitud
-   • 1 solicitud cada 12 horas
+    Free: NO DISPONIBLE
+    Motivo: Prueba terminada.
 
-💎 BÁSICO - $10 USD (1 semana)
+💎 BÁSICO - $6 USD (1 semana)
    • Límite de 2 tarjetas por solicitud
    • 5 solicitudes por hora
 
-🌟 PREMIUM - $20 USD (1 semana)
+🌟 PREMIUM - $14 USD (1 semana)
    • Límite de 2 tarjetas por solicitud
    • 10 solicitudes por hora
 
-👑 VIP - $30 USD (1 semana)
+👑 VIP - $24 USD (1 semana)
    • Límite de 3 tarjetas por solicitud
    • 20 solicitudes por hora
 
