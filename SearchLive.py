@@ -1,4 +1,3 @@
-
 import psycopg2
 import psycopg2.extras
 from telegram import Update
@@ -419,6 +418,37 @@ def buscar_bins(bin_input: str, mes=None, año=None, limite=1) -> list:
             contador += 1
     return resultados
 
+# === BUSCAR POR BANCO (premium / vip) ===
+def buscar_por_banco(banco_input: str, limite: int) -> list:
+    """
+    Busca tarjetas cuyo banco contenga banco_input (case-insensitive).
+    """
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT bloque FROM bloques_guardados")
+    bloques_db = [row[0] for row in c.fetchall()]
+    conn.close()
+
+    bloques = list(dict.fromkeys([b.strip() for b in bloques_db if b.strip()]))
+    import random
+    random.shuffle(bloques)
+
+    resultados = []
+    banco_input_norm = banco_input.lower()
+    for bloque in bloques:
+        if len(resultados) >= limite:
+            break
+        match_tarjeta = re.search(r'💳 Tarjeta: ([\d|]+)', bloque)
+        match_banco = re.search(r'💰 Banco: (.+)', bloque)
+        match_fecha = re.search(r'🕒 Fecha: (.+)', bloque)
+        if match_tarjeta and match_banco:
+            banco_nombre = match_banco.group(1).strip()
+            if banco_input_norm in banco_nombre.lower():
+                tarjeta = match_tarjeta.group(1)
+                fecha_str = match_fecha.group(1).strip() if match_fecha else "Desconocida"
+                resultados.append(f"🏦 {banco_nombre}\n💳 {tarjeta}\n🕒 {fecha_str}")
+    return resultados
+
 # === /bin ===
 async def bin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -619,6 +649,48 @@ async def binfecha_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(respuesta)
 
+# === /bank ===
+async def bank_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if not usuario_autorizado(user_id):
+        await update.message.reply_text("🚫 No estás autorizado para usar este bot.")
+        return
+
+    plan = obtener_plan_usuario(user_id)
+    if plan not in ("premium", "vip"):
+        await update.message.reply_text("🚫 El comando /bank está disponible solo para planes PREMIUM y VIP.")
+        return
+
+    if not puede_realizar_solicitud(user_id):
+        limites = obtener_limites_usuario(user_id)
+        await update.message.reply_text(f"🚫 Has excedido tu límite de {limites['solicitudes_por_hora']} solicitudes por hora.")
+        return
+
+    if len(context.args) == 0:
+        await update.message.reply_text("❗ Uso: /bank <nombre del banco>")
+        return
+
+    banco_query = " ".join(context.args).strip()
+    if len(banco_query) < 2:
+        await update.message.reply_text("❗ Ingresa al menos 2 caracteres para buscar.")
+        return
+
+    limites = obtener_limites_usuario(user_id)
+    max_tarjetas = limites["tarjetas_por_solicitud"]
+
+    resultados = buscar_por_banco(banco_query, max_tarjetas)
+
+    if resultados:
+        registrar_solicitud(user_id)
+        respuesta = f"🔍 Resultados para banco: {banco_query}\n\n" + "\n\n".join(resultados)
+        if len(resultados) == max_tarjetas:
+            respuesta += f"\n\nℹ️ Límite de {max_tarjetas} tarjetas alcanzado (plan {plan.upper()})."
+    else:
+        respuesta = f"⚠️ No se encontraron tarjetas con banco que contenga: {banco_query}"
+
+    await update.message.reply_text(respuesta)
+
 # === /start ===
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -667,16 +739,18 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Motivo: Prueba terminada.
 
 💎 BÁSICO - $6 USD (1 semana)
-   • Límite de 2 tarjetas por solicitud
+   • 2 tarjetas por solicitud
    • 5 solicitudes por hora
 
 🌟 PREMIUM - $14 USD (1 semana)
-   • Límite de 2 tarjetas por solicitud
+   • 2 tarjetas por solicitud
    • 10 solicitudes por hora
+   • Buscador por banco (/bank)
 
 👑 VIP - $24 USD (1 semana)
-   • Límite de 3 tarjetas por solicitud
+   • 3 tarjetas por solicitud
    • 20 solicitudes por hora
+   • Buscador por banco (/bank)
 
 💡 Para actualizar a un plan premium, contacta a un administrador.
 
@@ -705,12 +779,13 @@ que arroje como resultados del bin son lives.
 {planes_info}
 {usuario_info}
 🔍 Funciones disponibles:
-• `/bin <BIN>` - Buscar por BIN (primeros 6+ dígitos)  
-• `/bin <BIN> <mes>` - Buscar por BIN y mes de expiración  
-• `/bin <BIN> <año>` - Buscar por BIN y año de expiración  
-• `/bin <BIN> <mes> <año>` - Buscar por BIN, mes y año  
-• `/binfecha <BIN>|<mes>|<año>` - Buscar por BIN y fecha específica  
-• `/info` - Ver información detallada de tu cuenta
+• `/bin <BIN>` - Buscar por BIN  
+• `/bin <BIN> <mes>` - BIN + mes  
+• `/bin <BIN> <año>` - BIN + año  
+• `/bin <BIN> <mes> <año>` - BIN + fecha  
+• `/binfecha <BIN>|<mes>|<año>` - BIN y fecha específica  
+• `/bank <banco>` - Buscar por banco (PREMIUM/VIP)
+• `/info` - Ver información de tu cuenta
 
 ─────────────────
 
@@ -828,7 +903,7 @@ async def register_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"✅ Usuario {target_id} registrado correctamente con plan {plan.upper()} (gratuito).")
         else:
             await update.message.reply_text(
-                f"✅ Usuario {target_id} registrado correctamente con plan {plan.upper()}.\n"
+                f"✅ Usuario {target_id} registrado correctamente with plan {plan.upper()}.\n"
                 f"💲 Precio: ${precio} USD\n"
                 f"⏰ Duración: {duracion} días"
             )
@@ -911,7 +986,7 @@ async def miplan_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     plan = obtener_plan_usuario(user_id)
     limites = obtener_limites_usuario(user_id)
     tiempo_restante = obtener_tiempo_restante(user_id)
-    
+    extra = "• Acceso a /bank: Sí" if plan in ("premium", "vip") else "• Acceso a /bank: No (requiere PREMIUM o VIP)"
     respuesta = f"""
 📋 *INFORMACIÓN DE TU PLAN:*
 
@@ -920,6 +995,7 @@ async def miplan_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Solicitudes por hora: *{limites['solicitudes_por_hora']}*
 • Solicitudes por 12 horas: *{limites['solicitudes_por_12h']}*
 • Tiempo restante: *{tiempo_restante}*
+{extra}
 
 💡 Para renovar o mejorar tu plan, contacta a un administrador.
 """
@@ -1030,6 +1106,7 @@ def main():
     app.add_handler(CommandHandler("miplan", miplan_handler))
     app.add_handler(CommandHandler("users", users_handler))
     app.add_handler(CommandHandler("deleteuser", deleteuser_handler))
+    app.add_handler(CommandHandler("bank", bank_handler))
 
     print("🤖 Bot corriendo...")
     app.run_polling()
