@@ -711,6 +711,13 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     plan_actual = obtener_plan_usuario(user_id)
     limites = obtener_limites_usuario(user_id)
     tiempo_restante = obtener_tiempo_restante(user_id)
+
+    # Obtener el total de usuarios registrados
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM usuarios")
+    total_usuarios = c.fetchone()[0]
+    conn.close()
     
     usuario_info = f"""
 👤 INFORMACIÓN DE TU CUENTA:
@@ -722,7 +729,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 {mensaje_registro}
 
-
+👥 Total de usuarios registrados: {total_usuarios}
 
 ─────────────────
 """
