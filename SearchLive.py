@@ -43,7 +43,7 @@ BOT_TOKEN = "7749960022:AAHRgIbhiV0gAngpCQzSzjpdYthhvn6ghX0"
 ARCHIVO_TARJETAS = "Team_Wolf_Lives_mensajes.txt"
 
 # Configuración de conexión PostgreSQL (igual que en savelives.py)
-BASE_URL = "postgresql://postgres:HHksJErrGGMthwnZbmGxpckTusSlfrmK@crossover.proxy.rlwy.net:26803/railway"
+BASE_URL = "postgresql://postgres:HOQVWehAUWjFSavlRDinFvSvmsJdDMPB@nozomi.proxy.rlwy.net:57254/railway
 def get_conn():
     return psycopg2.connect(BASE_URL, cursor_factory=psycopg2.extras.DictCursor)
 
@@ -53,7 +53,7 @@ PGUSER = os.environ.get("PGUSER")
 POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD")
 RAILWAY_PRIVATE_DOMAIN = os.environ.get("RAILWAY_PRIVATE_DOMAIN")
 PGDATABASE = os.environ.get("PGDATABASE")
-BASE_URL = f"postgresql://postgres:HHksJErrGGMthwnZbmGxpckTusSlfrmK@crossover.proxy.rlwy.net:26803/railway"
+BASE_URL = f"postgresql://postgres:HOQVWehAUWjFSavlRDinFvSvmsJdDMPB@nozomi.proxy.rlwy.net:57254/railway"
 
 def get_conn():
     return psycopg2.connect(BASE_URL, cursor_factory=psycopg2.extras.DictCursor)
@@ -1120,3 +1120,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
