@@ -3,4 +3,4 @@ asyncio
 telegram
 python-telegram-bot
 psycopg2-binary
-
+requests
