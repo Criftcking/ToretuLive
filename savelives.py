@@ -1,7 +1,7 @@
 import psycopg2
 import psycopg2.extras
 # Configuración de conexión PostgreSQL (igual que en SQL SEARCHER LIVE.py)
-BASE_URL = "postgresql://postgres:HHksJErrGGMthwnZbmGxpckTusSlfrmK@crossover.proxy.rlwy.net:26803/railway"
+BASE_URL = "postgresql://postgres:HOQVWehAUWjFSavlRDinFvSvmsJdDMPB@nozomi.proxy.rlwy.net:57254/railway"
 def get_conn():
     return psycopg2.connect(BASE_URL, cursor_factory=psycopg2.extras.DictCursor)
 
@@ -151,3 +151,4 @@ async def main():
 
 with client:
     client.loop.run_until_complete(main())
+
